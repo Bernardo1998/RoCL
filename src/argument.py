@@ -2,6 +2,7 @@ import argparse
 
 def test_parser():
     parser = argparse.ArgumentParser(description='linear eval test')
+    parser.add_argument('--module',action='store_true')
     parser.add_argument('--train_type', default='linear_eval', type=str, help='standard')
     parser.add_argument('--dataset', default='cifar-10', type=str, help='cifar-10/cifar-100')
     parser.add_argument('--load_checkpoint', default='./checkpoint/ckpt.t7one_task_0', type=str, help='PATH TO CHECKPOINT')
@@ -29,6 +30,9 @@ def test_parser():
         help='maximum iteration when generating adversarial examples')
     parser.add_argument('--random_start', type=bool, default=True,
         help='True for PGD')
+    parser.add_argument('--returnFromSup',action='store_true')
+    parser.add_argument('--returnFromRobust', action='store_true')
+    parser.add_argument('--noJitter', action='store_true')
     
     args = parser.parse_args()
 
@@ -36,7 +40,7 @@ def test_parser():
 
 def linear_parser():
     parser = argparse.ArgumentParser(description='RoCL linear training')
-
+    parser.add_argument('--module',action='store_true')
     ##### arguments for RoCL Linear eval (LE) or Robust Linear eval (r-LE)#####
     parser.add_argument('--train_type', default='linear_eval', type=str, help='contrastive/linear eval/test')
     parser.add_argument('--finetune', default=False, type=bool, help='finetune the model')
@@ -86,6 +90,12 @@ def linear_parser():
     
     parser.add_argument('--random_start', type=bool, default=True,
         help='True for PGD')
+    parser.add_argument('--returnFromSup',action='store_true')
+    parser.add_argument('--returnFromRobust', action='store_true')
+    parser.add_argument('--noJitter', action='store_true')
+    parser.add_argument('--scratch', type=bool, default=False,
+        help='start linear eval from scratch')
+    
     args = parser.parse_args()
 
     return args
@@ -143,7 +153,15 @@ def parser():
     parser.add_argument('--k', type=int, default=7, help='maximum iteration when generating adversarial examples')
     parser.add_argument('--random_start', type=bool, default=True,
         help='True for PGD')
+        
+    # XF 10312022: custom save epochs
     
+    parser.add_argument('--epoch_save', type=int, default=100)  
+    parser.add_argument('--returnFromSup',action='store_true')
+    parser.add_argument('--start_epoch', type=int, default=0)  
+    parser.add_argument('--returnFromRobust', action='store_true')
+    parser.add_argument('--noJitter', action='store_true')
+        
     args = parser.parse_args()
 
     return args

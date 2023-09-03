@@ -1,10 +1,14 @@
 from models.resnet import ResNet18,ResNet50
+import torch
+from collections import OrderedDict
 def get_model(args):
 
     if args.dataset == 'cifar-10':
         num_classes=10
     elif args.dataset == 'cifar-100':
         num_classes=100
+    elif args.dataset == 'tiny-imagenet':
+    	num_classes = 200
     else:
         raise NotImplementedError
 
@@ -19,5 +23,6 @@ def get_model(args):
     elif args.model == 'ResNet50':
         model = ResNet50(num_classes,contrastive_learning)
         print('ResNet 50 is loading ...')
+        
     return model
 

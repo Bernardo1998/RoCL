@@ -1,9 +1,7 @@
 '''ResNet in PyTorch.
-
 BasicBlock and Bottleneck module is from the original ResNet paper:
 [1] Kaiming He, Xiangyu Zhang, Shaoqing Ren, Jian Sun
     Deep Residual Learning for Image Recognition. arXiv:1512.03385
-
 PreActBlock and PreActBottleneck module is from the later paper:
 [2] Kaiming He, Xiangyu Zhang, Shaoqing Ren, Jian Sun
     Identity Mappings in Deep Residual Networks. arXiv:1603.05027
@@ -139,6 +137,7 @@ class ResNet(nn.Module):
         self.contranstive_learning = contrastive_learning
 
         if not contrastive_learning:
+            print("Linear layer added!")
             self.linear = nn.Linear(512*block.expansion, num_classes)
 
     def _make_layer(self, block, planes, num_blocks, stride):
@@ -153,7 +152,7 @@ class ResNet(nn.Module):
         out = x
         out_list = []
         
-        out = self.conv1(out)
+        out = self.conv1(out) # out shape: [batch_size, 64,32,32]
         out = self.bn1(out)
         out = F.relu(out)
         out_list.append(out)

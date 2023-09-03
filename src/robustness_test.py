@@ -11,6 +11,7 @@ import torch.nn as nn
 import data_loader
 import model_loader
 
+from argument import test_parser
 from utils import progress_bar
 from collections import OrderedDict
 
@@ -58,10 +59,15 @@ if args.dataset=='cifar-10':
     Linear = nn.Sequential(nn.Linear(512*expansion, 10))
 elif args.dataset=='cifar-100':
     Linear = nn.Sequential(nn.Linear(512*expansion, 100))
-
-checkpoint_ = torch.load(args.load_checkpoint)
+print(args.load_checkpoint)
+if args.returnFromRobust:
+    checkpoint_ = {'model':torch.load(args.load_checkpoint)}
+else:
+    checkpoint_ = torch.load(args.load_checkpoint)
 new_state_dict = OrderedDict()
 for k, v in checkpoint_['model'].items():
+    if "fc" in k or "linear" in k:
+        continue
     if args.module:
         name = k[7:]
     else:
@@ -162,4 +168,8 @@ if args.local_rank % ngpus_per_node == 0:
     with open(logname, 'a') as logfile:
         logwriter = csv.writer(logfile, delimiter=',')
         logwriter.writerow([args.random_start, args.attack_type, args.epsilon, args.k, adv_acc])
+
+##################
+# Plot features of the first layer:
+##################
 

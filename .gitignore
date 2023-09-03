@@ -1,0 +1,8 @@
+src/Data*
+src/results*
+src/plots*
+src/checkpoint*
+src/trained_models*
+src/model_checkpoint*
+*__pycache__*
+nohup.out

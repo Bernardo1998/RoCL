@@ -9,13 +9,16 @@ if sys.version_info[0] == 2:
     import cPickle as pickle
 else:
     import pickle
+from urllib import request
+import zipfile
+import json
 
 from .vision import VisionDataset
 from .utils import check_integrity, download_and_extract_archive
 
 
-class CIFAR10(VisionDataset):
-    """`CIFAR10 <https://www.cs.toronto.edu/~kriz/cifar.html>`_ Dataset.
+class TinyImagenet(VisionDataset):
+    """`Tiny imagenet <http://vision.stanford.edu/teaching/cs231n/reports/2015/pdfs/yle_project.pdf>`
     Args:
         root (string): Root directory of dataset where directory
             ``cifar-10-batches-py`` exists or will be saved to if download is set to True.
@@ -29,34 +32,18 @@ class CIFAR10(VisionDataset):
             puts it in root directory. If dataset is already downloaded, it is not
             downloaded again.
     """
-    base_folder = 'cifar-10-batches-py'
-    url = "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
-    filename = "cifar-10-python.tar.gz"
-    tgz_md5 = 'c58f30108f718f92721af3b95e74349a'
-    train_list = [
-        ['data_batch_1', 'c99cafc152244af753f735de768cd75f'],
-        ['data_batch_2', 'd4bba439e000b95fd0a9bffe97cbabec'],
-        ['data_batch_3', '54ebc095f3ab1f0389bbae665268c751'],
-        ['data_batch_4', '634d18415352ddfa80567beed471001a'],
-        ['data_batch_5', '482c414d41f54cd18b22e5b47cb7c3cb'],
-    ]
+    base_folder = 'tiny-imagenet-200'
+    url = "http://cs231n.stanford.edu/tiny-imagenet-200.zip"
+    filename = "tiny-imagenet-200.zip"
+    wnid = "wnids.txt"
+    
+    def __init__(self, root, train='train', transform=None, target_transform=None,
+                 download=True, contrastive_learning=False):
 
-    test_list = [
-        ['test_batch', '40351d587109b95175f43aff81a1287e'],
-    ]
-    meta = {
-        'filename': 'batches.meta',
-        'key': 'label_names',
-        'md5': '5ff9c542aee3614f3951f8cda6e48888',
-    }
-
-    def __init__(self, root, train=True, transform=None, target_transform=None,
-                 download=False, contrastive_learning=False):
-
-        super(CIFAR10, self).__init__(root, transform=transform,
+        super(TinyImagenet, self).__init__(root, transform=transform,
                                       target_transform=target_transform)
 
-        self.train = train  # training set or test set
+        self.train = train  # now a str: train/test/val
         self.learning_type = contrastive_learning
 
         if download:
@@ -66,33 +53,41 @@ class CIFAR10(VisionDataset):
             raise RuntimeError('Dataset not found or corrupted.' +
                                ' You can use download=True to download it')
 
-        if self.train:
-            downloaded_list = self.train_list
-        else:
-            downloaded_list = self.test_list
-
         self.data = []
         self.targets = []
+        
+        wnid_path = os.path.join(self.root, self.base_folder, self.wnid)
+        wnid_map = {}
+        with open(wnid_path, "r") as wnidF:
+        	for i,line in enumerate(wnidF):
+        	    wnid = line.split('\t')[0].replace("\n","")
+        	    wnid_map[wnid] = i
+        #print(wnid_map)
 
-        # now load the picked numpy arrays
-        for file_name, checksum in downloaded_list:
-            file_path = os.path.join(self.root, self.base_folder, file_name)
-            with open(file_path, 'rb') as f:
-                if sys.version_info[0] == 2:
-                    entry = pickle.load(f)
-                else:
-                    entry = pickle.load(f, encoding='latin1')
-                self.data.append(entry['data'])
-                if 'labels' in entry:
-                    self.targets.extend(entry['labels'])
-                else:
-                    self.targets.extend(entry['fine_labels'])
+        if self.train  == "train":
+            image_folder = os.path.join(self.root, self.base_folder, self.train)
+            subfolders = os.listdir(image_folder)
+            for subfolder in subfolders:
+                class_id = wnid_map[subfolder]
+                images = os.listdir(os.path.join(image_folder, subfolder, "images"))
+                for image in images:
+                    image_path = os.path.join(image_folder, subfolder, "images" , image)
+                    self.data.append(image_path)
+                    self.targets.append(class_id)
+        else:
+            image_folder = os.path.join(self.root, self.base_folder, self.train, "images")
+            annotations = os.path.join(self.root, self.base_folder, self.train, self.train+"_annotations.txt")
+            with open(annotations, 'r') as antF:
+                for line in antF:
+                    elements = line.split('\t')
+                    image_path = os.path.join(image_folder, elements[0])
+                    class_id = wnid_map[elements[1]]
+                    self.data.append(image_path)
+                    self.targets.append(class_id)
 
-        self.data = np.vstack(self.data).reshape(-1, 3, 32, 32)
-        self.data = self.data.transpose((0, 2, 3, 1))  # convert to HWC
-        print(self.data.shape)
-
-        self._load_meta()
+        #self.data = np.vstack(self.data).reshape(-1, 3, 32, 32)
+        #self.data = self.data.transpose((0, 2, 3, 1))  # convert to HWC
+        #self.data = np.random.randint(0,255,size=(len(self.data), 64,64,3)).astype(np.uint8)
 
     def _load_meta(self):
         path = os.path.join(self.root, self.base_folder, self.meta['filename'])
@@ -115,16 +110,18 @@ class CIFAR10(VisionDataset):
             tuple: (image, target) where target is index of the target class.
         """
         img, target = self.data[index], self.targets[index]
-        #print(type(img), img.shape)
+        # Read np array from an image path. Convert to RGB so all img has 3 channels, avoid 'not resizable' error.
+        img = np.array(Image.open(img).convert('RGB')).astype(np.uint8)
         ori_img = img
         toTensor = transforms.ToTensor()
         ori_img = toTensor(ori_img)
+        #print(type(img), img.dtype, img.shape, img.min(), img.max())
         
         if self.learning_type=='contrastive':
             img_2 = img.copy()
 
         elif self.learning_type=='linear_eval' or self.learning_type == "supervised":
-            if self.train:
+            if self.train  == "train":
                 img_2 = img.copy()
 
         # doing this so that it is consistent with all other datasets
@@ -133,7 +130,7 @@ class CIFAR10(VisionDataset):
         if self.learning_type=='contrastive':
             img_2   = Image.fromarray(img_2)
         elif self.learning_type=='linear_eval' or self.learning_type == "supervised":
-            if self.train:
+            if self.train  == "train":
                 img_2 = img.copy()
 
         if self.transform is not None:
@@ -141,16 +138,16 @@ class CIFAR10(VisionDataset):
             if self.learning_type=='contrastive':
                 img_2   = self.transform(img_2)
             elif self.learning_type=='linear_eval' or self.learning_type == "supervised":
-                if self.train:
+                if self.train  == "train":
                     img_2 = self.transform(img_2)
 
         if self.target_transform is not None:
             target = self.target_transform(target)
-
+        #print(self.learning_type,self.train)
         if self.learning_type=='contrastive':
             return ori_img, img, img_2, target
         elif self.learning_type=='linear_eval' or self.learning_type == "supervised": # XF 11252022: change supervised to have the same output as linear_eval
-            if self.train:
+            if self.train  == "train":
                 return ori_img, img, img_2, target
             else:
                 return img, target
@@ -162,41 +159,36 @@ class CIFAR10(VisionDataset):
 
     def _check_integrity(self):
         root = self.root
-        for fentry in (self.train_list + self.test_list):
-            filename, md5 = fentry[0], fentry[1]
-            fpath = os.path.join(root, self.base_folder, filename)
-            if not check_integrity(fpath, md5):
-                return False
+        # Ensure both wnid list and images in corresponding annotation files are found
+        if not os.path.exists(os.path.join(root, self.base_folder)):
+            print("Missing folder!")
+            return False
+        if self.wnid not in os.listdir(os.path.join(root, self.base_folder)):
+            print("Missing wnid!")
+            return False
+        for fentry in ['val']:
+            images = set(os.listdir(os.path.join(root, self.base_folder, fentry, "images")))
+            filename = fentry + "_annotations.txt"
+            fpath = os.path.join(root, self.base_folder, fentry, filename)
+            with open(fpath, 'r') as anntFile:
+                for line in anntFile:
+                    image_name = line.split('\t')[0]
+                    if not image_name in images:
+                        print("Missing image!")
+                        return False
         return True
 
     def download(self):
         if self._check_integrity():
-            print('Files already downloaded and verified')
+            print('Files already downloaded and verified.')
             return
-        download_and_extract_archive(self.url, self.root, filename=self.filename, md5=self.tgz_md5)
+        # Save and extract files
+        #if not os.path.exists(os.path.join(self.root, self.base_folder)):
+        #    os.mkdir(os.path.join(self.root, self.base_folder))
+        local_path = os.path.join(self.root, self.filename)
+        response = request.urlretrieve(self.url, local_path)
+        with zipfile.ZipFile(local_path,"r") as zip_ref:
+            zip_ref.extractall(os.path.join(self.root))
 
     def extra_repr(self):
         return "Split: {}".format("Train" if self.train is True else "Test")
-
-
-class CIFAR100(CIFAR10):
-    """`CIFAR100 <https://www.cs.toronto.edu/~kriz/cifar.html>`_ Dataset.
-    This is a subclass of the `CIFAR10` Dataset.
-    """
-    base_folder = 'cifar-100-python'
-    url = "https://www.cs.toronto.edu/~kriz/cifar-100-python.tar.gz"
-    filename = "cifar-100-python.tar.gz"
-    tgz_md5 = 'eb9058c3a382ffc7106e4002c42a8d85'
-    train_list = [
-        ['train', '16019d7e3df5f24257cddd939b257f8d'],
-    ]
-
-    test_list = [
-        ['test', 'f0ef6b0ae62326f3e7ffdfab6717acfc'],
-    ]
-    meta = {
-        'filename': 'meta',
-        'key': 'fine_label_names',
-        'md5': '7973b15100ade9c7d40fb424638fde48',
-    }
-

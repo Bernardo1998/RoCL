@@ -1,0 +1,37 @@
+This set of commands redo the entire experiemtn in RoCL, INCLUDING adv sup.
+
+#####################
+# Exp 1: CIFAR10 -> CIFAR 10
+##############/media/xflin/10tb/Xiaofeng/RoCL/src/checkpoint/ckpt.t7testLog.txtRep_attack_ep_0.0314_alpha_0.007_min_val_0.0_max_val_1.0_max_iters_7_type_linf_randomstart_Truecontrastive_ResNet18_cifar-10_b256_nGPU1_l256_0_projector_epoch_1200
+/media/xflin/10tb/Xiaofeng/RoCL/src/checkpoint/ckpt.t7testLog.txtRep_attack_ep_0.0314_alpha_0.007_min_val_0.0_max_val_1.0_max_iters_7_type_linf_randomstart_Truecontrastive_ResNet18_cifar-10_b256_nGPU1_l256_0_epoch_1200
+# (6) adv contrast from 200 to 1400 epoch 
+python -m torch.distributed.launch --nproc_per_node=1 rocl_train.py --ngpu 1 --batch-size=256 --model='ResNet18' --k=7 --loss_type='sim'  --attack_type='linf' --name=testLog.txt --regularize_to='other' --attack_to='other' --train_type='contrastive' --dataset='cifar-10' --local_rank 0  --load_checkpoint "/media/xflin/10tb/Xiaofeng/RoCL/src/trained_models/restart/cifar10_to_cifar10/clean_pretrain_200/ckpt.t7testLog.txtsupervised_ResNet18_cifar-10_b256_nGPU1_l256_0" --resume --epoch_save 50 --epoch 1400 --returnFromSup
+
+# (7) clean downstream after adv contrast to 1600 epoch (Adv contra, CLean: )
+
+# (7) Adv sup downstream after adv contrast to 1600 epoch (Adv contra, Adv Sup: )
+
+
+###########################
+# Exp 2: CIFAR100 -> CIFAR10
+###########################
+
+# Clean 400 epoch:
+python -m torch.distributed.launch --nproc_per_node=1 rocl_train.py --ngpu 1 --batch-size=256 --model='ResNet18' --k=7 --loss_type='sim'  --attack_type='linf' --name=testLog.txt --regularize_to='other' --attack_to='other' --train_type='supervised' --dataset='cifar-100' --local_rank 0 --advtrain_type "None" --epoch 200 --epoch_save 100
+
+# ADv contrast from 200 to 400 epoch (not ran yet)
+python -m torch.distributed.launch --nproc_per_node=1 rocl_train.py --ngpu 1 --batch-size=256 --model='ResNet18' --k=7 --loss_type='sim'  --attack_type='linf' --name=testLog.txt --regularize_to='other' --attack_to='other' --train_type='contrastive' --dataset='cifar-100' --local_rank 0  --load_checkpoint "/home/xflin/Xiaofeng/RoCL/src/trained_models/restart/cifar100_to_cifar10/clean_pretrain_200/ckpt.t7testLog.txtsupervised_ResNet18_cifar-100_b256_nGPU1_l256_0" --resume --epoch_save 30 --epoch 200 --returnFromSup 
+
+python -m torch.distributed.launch --nproc_per_node=1 rocl_train.py --ngpu 1 --batch-size=256 --model='ResNet18' --k=7 --loss_type='sim'  --attack_type='linf' --name=testLog.txt --regularize_to='other' --attack_to='other' --train_type='contrastive' --dataset='cifar-10' --local_rank 0  --load_checkpoint "/home/xflin/Xiaofeng/RoCL/src/checkpoint/ckpt.t7testLog.txtRep_attack_ep_0.0314_alpha_0.007_min_val_0.0_max_val_1.0_max_iters_7_type_linf_randomstart_Truecontrastive_ResNet18_cifar-10_b256_nGPU1_l256_0" --resume --epoch_save 200 --epoch 1400 --start_epoch 540
+
+# Clean downstream after contrastive from 400 to 600 epoch (not ran yet)
+python -m torch.distributed.launch --nproc_per_node=1 linear_eval.py --ngpu 1 --train_type='linear_eval' --name=cleanRoCL_eval --batch-size=1024 --model=ResNet18 --load_checkpoint='/home/xflin/Xiaofeng/RoCL/src/trained_models/cifar100_to_ciar10/adv_pretrain_400/start_from_200epoch/ckpt.t7testLog.txtRep_attack_ep_0.0314_alpha_0.007_min_val_0.0_max_val_1.0_max_iters_7_type_linf_randomstart_Truecontrastive_ResNet18_cifar-100_b256_nGPU1_l256_0' --attack_type='linf' --epsilon=0.0314 --alpha=0.00314 --k=20  --dataset=cifar-10 --seed=42 --clean=True
+
+
+# Adv sup from 200 to 400 epoch
+python -m torch.distributed.launch --nproc_per_node=1 linear_eval.py --ngpu 1 --batch-size=256 --train_type='linear_eval' --model='ResNet18' --epoch 200 --lr 0.1 --name RS_advSupPretrain --load_checkpoint='/home/xflin/Xiaofeng/RoCL/src/trained_models/restart/cifar100_to_cifar10/clean_pretrain_200/ckpt.t7testLog.txtsupervised_ResNet18_cifar-100_b256_nGPU1_l256_0' --clean=True --dataset='cifar-100' --seed=42 --finetune=True --adv_img=True
+
+# Clean downstream after adv sup.
+python -m torch.distributed.launch --nproc_per_node=1 linear_eval.py --ngpu 1 --batch-size=256 --train_type='linear_eval' --model='ResNet18' --epoch 200 --lr 0.1 --name RS_advSupCleandownstream3 --load_checkpoint='/home/xflin/Xiaofeng/RoCL/src/trained_models/restart/cifar100_to_cifar10/advSup_pretrain_400/ckpt.t7RS_advSupPretrain_Evaluate_linear_eval_ResNet18_cifar-100_42' --clean=True --dataset='cifar-10' --seed=42 --module
+python -m torch.distributed.launch --nproc_per_node=1 robustness_test.py --ngpu 1 --train_type='linear_eval' --name=cleanRoCL_eval --batch-size=1024 --model=ResNet18 --load_checkpoint='/home/xflin/Xiaofeng/RoCL/src/trained_models/restart/cifar100_to_cifar10/clean_downstream_afterAdvSup_600/ckpt.t7RS_advSupCleandownstream3_Evaluate_linear_eval_ResNet18_cifar-10_42' --attack_type='linf' --epsilon=0.0314 --alpha=0.00314 --k=20  --dataset=cifar-10 --seed=42 --module
+

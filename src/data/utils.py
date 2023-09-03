@@ -8,7 +8,7 @@ import zipfile
 
 import torch
 from torch.utils.model_zoo import tqdm
-from torch._six import PY3
+#from torch._six import PY3
 
 
 def gen_bar_updater():
@@ -231,7 +231,7 @@ def extract_archive(from_path, to_path=None, remove_finished=False):
     elif _is_targz(from_path) or _is_tgz(from_path):
         with tarfile.open(from_path, 'r:gz') as tar:
             tar.extractall(path=to_path)
-    elif _is_tarxz(from_path) and PY3:
+    elif _is_tarxz(from_path):
         # .tar.xz archive only supported in Python 3.x
         with tarfile.open(from_path, 'r:xz') as tar:
             tar.extractall(path=to_path)

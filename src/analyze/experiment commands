@@ -1,0 +1,72 @@
+# Since the saved model names only show epoch numbers, save each model to a separate folder after training, to avoid confusion/losing result.
+# In Downstream training, fix hidden features
+# In Eval: INCLUDE ADV ATTACK TYPE!!!!
+
+# Exp1: adv supervised cifar 10 + downstream cifar 10
+# (1) clean pretraining + baseline + eval
+python3 train_cifar.py --attack 'none' --epochs 400 --model "Resnet18" 
+python3 train_cifar.py --attack 'none' --resume 400 --epochs 600 --model "Resnet18" --fixFeatures
+python3 train_cifar.py --attack 'pgd' --resume 600 --epochs 601 --model "Resnet18" --eval
+# (2) Adv supervised pretraining
+python3 train_cifar.py --attack 'pgd' --resume 200 --epochs 400 --model "Resnet18"
+# (3) Supervised downstream training + eval
+python3 train_cifar.py --attack 'none' --resume 400 --epochs 600 --model "Resnet18" --fixFeatures
+python3 train_cifar.py --attack 'pgd' --resume 600 --epochs 601 --model "Resnet18" --eval
+
+
+# Exp3: adv supervised cifar100 + downstream cifar 10
+# (1) clean pretraining on Cifar100 + baseline downstream on Cifar10 + eval. Copy model from cifar100_model to cifar_model after the first line by hand.
+python3 train_cifar100.py --attack 'none' --epochs 400 --model "Resnet18"
+python3 train_cifar.py --attack 'none' --resume 400 --epochs 600 --model "Resnet18" --resumeFromCifar100 --fixFeatures
+python3 train_cifar.py --attack 'pgd' --resume 600 --epochs 601 --model "Resnet18" --eval
+# (2) Adv supervised pretraining
+python3 train_cifar100.py --attack 'pgd' --resume 200 --epochs 400 --model "Resnet18"
+# (3) Supervised downstream training + eval. Moved model from (2) to cifar_model by hand.
+python3 train_cifar.py --attack 'none' --resume 400 --epochs 600 --model "Resnet18" --resumeFromCifar100 --fixFeatures
+python3 train_cifar.py --attack 'pgd' --resume 600 --epochs 601 --model "Resnet18" --eval
+
+
+
+# Visualize trained model
+python visualize_model.py
+
+# Exp 1.5: adv supervised cifar10 + downstream cifar10, using ResNetRoCL
+# (1) clean pretraining on cifar10
+python3 train_cifar.py --attack 'none' --epochs 400 --model "Resnet18RoCL"
+# (2) adv supervised training on cifar10, 
+python3 train_cifar.py --attack 'pgd' --resume 200 --epochs 400 --model "Resnet18RoCL" 
+# (2.5) adv supervised, after cleaning training in ROCL
+python3 train_cifar.py --attack 'pgd' --resume 200 --epochs 400 --model "Resnet18RoCL"  --resumeFromRoCL
+# (3) downstream and eval 
+python3 train_cifar.py --attack 'none' --resume 400 --epochs 600 --model "Resnet18RoCL" --fixFeatures
+python3 train_cifar.py --attack 'pgd' --resume 600 --epochs 601 --model "Resnet18RoCL" --eval
+# (4) (Deprecrated) finish clean downstream and eval using RoCL
+# (5) Adv downstream
+python3 train_cifar.py --attack 'pgd' --resume 400 --epochs 600 --model "Resnet18RoCL" --fixFeatures
+python3 train_cifar.py --attack 'pgd' --resume 600 --epochs 601 --model "Resnet18RoCL" --eval
+
+python3 train_cifar.py --attack 'pgd' --resume 250 --epochs 450 --model "Resnet18RoCL" --fixFeatures
+python3 train_cifar.py --attack 'pgd' --resume 450 --epochs 451 --model "Resnet18RoCL" --eval
+
+# Exp 3.5: adv supervised cifar100 + downstream cifar10, using ResNetRoCL 
+# NOT REPORTED. GO TO ROCL for CIFAR 100 -> CIFAR 10 EXPERIMENT
+# (1) clean pretraining on cifar100
+python3 train_cifar100.py --attack 'none' --epochs 400 --model "Resnet18RoCL"
+# (2) adv supervised training on cifar10, 
+python3 train_cifar100.py --attack 'pgd' --resume 200 --epochs 400 --model "Resnet18RoCL"
+python3 train_cifar100.py --attack 'pgd' --resume 241 --epochs 441 --model "Resnet18RoCL" --fixFeatures
+# (3) downstream and eval 
+python3 train_cifar.py --attack 'none' --resume 241 --epochs 441 --model "Resnet18RoCL" --fixFeatures --resumeFromCifar100
+python3 train_cifar.py --attack 'pgd' --resume 441 --epochs 442 --model "Resnet18RoCL" --eval
+python3 train_cifar2.py --attack 'none' --resume 241 --epochs 441 --model "Resnet18RoCL" --fixFeatures --resumeFromCifar100
+# (4) finish clean downstream and eval using RoCL
+python3 train_cifar.py --attack 'none' --resume 400 --epochs 600 --model "Resnet18RoCL" --fixFeatures
+python3 train_cifar.py --attack 'pgd' --resume 600 --epochs 601 --model "Resnet18RoCL" --eval
+
+# (5) Adv downstream
+python3 train_cifar.py --attack 'pgd' --resume 241 --epochs 441 --model "Resnet18RoCL" --fixFeatures
+python3 train_cifar.py --attack 'pgd' --resume 441 --epochs 442 --model "Resnet18RoCL" --eval
+
+# Exp 5: adv downstream only, not clean/adv pretrain
+python3 train_cifar.py --attack 'pgd' --epochs 200 --model "Resnet18RoCL" --fixFeatures
+

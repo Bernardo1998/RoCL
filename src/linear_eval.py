@@ -26,8 +26,10 @@ from models.projector import Projector
 from argument import linear_parser, print_args
 from utils import progress_bar, checkpoint
 from collections import OrderedDict
-from attack_lib import FastGradientSignUntargeted
+from attack_lib import FastGradientSignUntargeted,ProjectedGradientDescent
 from loss import pairwise_similarity, NT_xent
+
+from torchlars import LARS
 
 args = linear_parser()
 use_cuda = torch.cuda.is_available()
@@ -63,7 +65,7 @@ elif args.dataset == 'cifar-100':
     num_outputs = 100
 
 if args.model == 'ResNet50':
-    expansion = 4
+    espansion = 4
 else:
     expansion = 1
 
@@ -79,21 +81,35 @@ def load(args, epoch):
     else:
         add = '_epoch_'+str(epoch)
 
-    checkpoint_ = torch.load(args.load_checkpoint+add)
+    # XF 11102022: load model trained in robust_overfitting code
+    # XF 12092022: if start from scratch, do not load a checkpoint.
+    if not args.scratch:
+        if args.returnFromRobust:
+            checkpoint_ = {'model':torch.load(args.load_checkpoint+add)}
+        else:
+            checkpoint_ = torch.load(args.load_checkpoint+add)
 
-    new_state_dict = OrderedDict()
-    for k, v in checkpoint_['model'].items():
-        name = k[7:]
-        new_state_dict[name] = v
-
-    model.load_state_dict(new_state_dict)
+        new_state_dict = OrderedDict()
+        for k, v in checkpoint_['model'].items():
+            if args.module:
+                name = k[7:]
+            else:
+                name = k
+            if "fc" in k or "linear" in k:
+                continue
+            new_state_dict[name] = v
+    
+        model.load_state_dict(new_state_dict)
     
     if args.ss:
         projector = Projector(expansion=expansion)
         checkpoint_p = torch.load(args.load_checkpoint+'_projector'+add)
         new_state_dict = OrderedDict()
         for k, v in checkpoint_p['model'].items():
-            name = k[7:]
+            #name = k[7:]
+            if "fc" in k or "linear" in k:
+                continue
+            name = k
             new_state_dict[name] = v
         projector.load_state_dict(new_state_dict)
     
@@ -101,6 +117,8 @@ def load(args, epoch):
         Linear = nn.Sequential(nn.Linear(512*expansion, 10))
     elif args.dataset=='cifar-100':
         Linear = nn.Sequential(nn.Linear(512*expansion, 100))
+    elif args.dataset=='tiny-imagenet':
+        Linear = nn.Sequential(nn.Linear(2048, 200))
 
     model_params = []
     if args.finetune:
@@ -109,6 +127,7 @@ def load(args, epoch):
             model_params += projector.parameters()
     model_params += Linear.parameters()
     loptim = torch.optim.SGD(model_params, lr = args.lr, momentum=0.9, weight_decay=5e-4)
+    #loptim       = LARS(optimizer=loptim, eps=1e-8, trust_coef=0.001)
    
     use_cuda = torch.cuda.is_available()
     if use_cuda:
@@ -131,7 +150,9 @@ def load(args, epoch):
         print_status("Adversarial training info...")
         print_status(attack_info)
 
-        attacker = FastGradientSignUntargeted(model, linear=Linear, epsilon=args.epsilon, alpha=args.alpha, min_val=args.min, max_val=args.max, max_iters=args.k, _type=args.attack_type)
+        #attacker = FastGradientSignUntargeted(model, linear=Linear, epsilon=args.epsilon, alpha=args.alpha, min_val=args.min, max_val=args.max, max_iters=args.k, _type=args.attack_type)
+        # 04052023: use PGD instead.
+        attacker = ProjectedGradientDescent(model, linear=Linear, epsilon=args.epsilon, alpha=args.alpha, min_val=args.min, max_val=args.max, max_iters=args.k, _type=args.attack_type)
 
     if args.adv_img:
         if args.ss:
@@ -255,7 +276,7 @@ def test(model, Linear):
 
 def adjust_lr(epoch, optim):
     lr = args.lr
-    if args.dataset=='cifar-10' or args.dataset=='cifar-100':
+    if args.dataset=='cifar-10' or args.dataset=='cifar-100' or args.dataset=='tiny-imagenet':
         lr_list = [30,50,100]
     if epoch>=lr_list[0]:
         lr = lr/10
